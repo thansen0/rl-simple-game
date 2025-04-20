@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"simplegame/constants"
 	"simplegame/entities"
 	"simplegame/spritesheet"
 
@@ -81,11 +83,18 @@ func (g *Game) Update() error {
 
 	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, 320, 240)
 	g.cam.Constrain(
-		float64(g.tilemapJSON.Layers[0].Width)*16.0,
-		float64(g.tilemapJSON.Layers[0].Height)*16.0,
+		float64(g.tilemapJSON.Layers[0].Width)*constants.Tilesize,
+		float64(g.tilemapJSON.Layers[0].Height)*constants.Tilesize,
 		320,
 		240,
 	)
+
+	for _, en := range g.enemies {
+		caught := PosMatch(g.player.Sprite, en.Sprite)
+		if caught {
+			fmt.Println("Enemy caught the player!")
+		}
+	}
 
 	return nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"simplegame/animations"
@@ -50,10 +51,10 @@ func main() {
 				X:   50.0,
 				Y:   50.0,
 				Animations: map[entities.SpriteState]*animations.Animation{
-					entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
-					entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
-					entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
-					entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+					entities.Up:    animations.NewAnimation(5, 13, 4, 14.0),
+					entities.Down:  animations.NewAnimation(4, 12, 4, 14.0),
+					entities.Left:  animations.NewAnimation(6, 14, 4, 14.0),
+					entities.Right: animations.NewAnimation(7, 15, 4, 14.0),
 				},
 			},
 			Health: 5,
@@ -63,13 +64,13 @@ func main() {
 			{
 				Sprite: &entities.Sprite{
 					Img: yellowBatImg,
-					X:   100.0,
+					X:   100,
 					Y:   100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
-						entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
-						entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
-						entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
-						entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+						entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
 					},
 				},
 				FollowsPlayer: true,
@@ -77,13 +78,41 @@ func main() {
 			{
 				Sprite: &entities.Sprite{
 					Img: yellowBatImg,
-					X:   150.0,
-					Y:   50.0,
+					X:   100.0,
+					Y:   100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
-						entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
-						entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
-						entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
-						entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+						entities.Up:    animations.NewAnimation(5, 13, 4, 9.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 9.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 9.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 9.0),
+					},
+				},
+				FollowsPlayer: true,
+			},
+			{
+				Sprite: &entities.Sprite{
+					Img: yellowBatImg,
+					X:   100.0,
+					Y:   100.0,
+					Animations: map[entities.SpriteState]*animations.Animation{
+						entities.Up:    animations.NewAnimation(5, 13, 4, 7.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 7.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 7.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 7.0),
+					},
+				},
+				FollowsPlayer: true,
+			},
+			{
+				Sprite: &entities.Sprite{
+					Img: yellowBatImg,
+					X:   100.0,
+					Y:   100.0,
+					Animations: map[entities.SpriteState]*animations.Animation{
+						entities.Up:    animations.NewAnimation(5, 13, 4, 11.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 11.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 11.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 11.0),
 					},
 				},
 				FollowsPlayer: true,
@@ -94,6 +123,17 @@ func main() {
 		tilemapImg:           tilemapImg,
 		cam:                  NewCamera(0.0, 0.0),
 	}
+
+	// set player position
+	// game.player.X, game.player.Y = game.tilemapJSON.GenValidPos()
+
+	// set random initialization points for enemies
+	for i := range game.enemies {
+		game.enemies[i].X, game.enemies[i].Y = game.tilemapJSON.GenValidPos()
+	}
+
+	var x int = game.tilemapJSON.TileHeight
+	fmt.Println(x)
 
 	if err := ebiten.RunGame(&game); err != nil {
 		log.Fatal(err)
