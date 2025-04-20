@@ -5,35 +5,35 @@ import (
 	"image/color"
 	"log"
 
+	"simplegame/animations"
+	"simplegame/entities"
+	"simplegame/spritesheet"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
-type Sprite struct {
-	Img  *ebiten.Image
-	X, Y float64
-}
-
-type Player struct {
-	*Sprite
-	Health uint
-}
-
 type Enemy struct {
-	*Sprite
+	*entities.Sprite
 	FollowsPlayer bool
 }
 
 type Game struct {
 	// the image and position variables for our player
-	player      *Player
-	enemies     []*Enemy
-	tilemapJSON *TilemapJSON
-	tilemapImg  *ebiten.Image
-	cam         *Camera
+	player               *entities.Player
+	playerSpriteSheet    *spritesheet.SpriteSheet
+	yellowBatSpriteSheet *spritesheet.SpriteSheet
+	enemies              []*Enemy
+	tilemapJSON          *TilemapJSON
+	tilemapImg           *ebiten.Image
+	cam                  *Camera
 }
 
 func (g *Game) Update() error {
+	var prev_player_X float64
+	var prev_player_Y float64
+	prev_player_X = g.player.X
+	prev_player_Y = g.player.Y
 
 	// move the player based on keyboar input (left, right, up down)
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
@@ -49,10 +49,21 @@ func (g *Game) Update() error {
 		g.player.Y = g.tilemapJSON.GetValidYPos(g.player.Y, 2)
 	}
 
+	// needs to be updated for other functions
+	g.player.Dx = g.player.X - prev_player_X
+	g.player.Dy = g.player.Y - prev_player_Y
+
+	activeAnim := g.player.ActiveAnimation(int(g.player.Dx), int(g.player.Dy))
+	if activeAnim != nil {
+		activeAnim.Update()
+	}
+
 	// add behavior to the enemies
 	for _, sprite := range g.enemies {
-
 		if sprite.FollowsPlayer {
+			prev_player_X = sprite.X
+			prev_player_Y = sprite.Y
+
 			if sprite.X < g.player.X {
 				sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, 1)
 			} else if sprite.X > g.player.X {
@@ -63,6 +74,16 @@ func (g *Game) Update() error {
 			} else if sprite.Y > g.player.Y {
 				sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, -1)
 			}
+
+			sprite.Dx = sprite.X - prev_player_X
+			sprite.Dy = sprite.Y - prev_player_Y
+
+			activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
+			if activeAnim == nil {
+				// force an up animation
+				activeAnim = sprite.ActiveAnimation(0, 2)
+			}
+			activeAnim.Update()
 		}
 
 	}
@@ -127,24 +148,41 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	opts.GeoM.Translate(g.player.X, g.player.Y)
 	opts.GeoM.Translate(g.cam.X, g.cam.Y)
 
+	playerFrame := 0
+	activeAnim := g.player.ActiveAnimation(int(g.player.Dx), int(g.player.Dy))
+	if activeAnim != nil {
+		playerFrame = activeAnim.Frame()
+	}
+
 	// draw the player
 	screen.DrawImage(
 		// grab a subimage of the spritesheet
 		g.player.Img.SubImage(
-			image.Rect(0, 0, 16, 16),
+			g.playerSpriteSheet.Rect(playerFrame),
 		).(*ebiten.Image),
 		&opts,
 	)
 
 	opts.GeoM.Reset()
 
+	// technically only works for yellow bat enemies
 	for _, sprite := range g.enemies {
 		opts.GeoM.Translate(sprite.X, sprite.Y)
 		opts.GeoM.Translate(g.cam.X, g.cam.Y)
 
+		spriteFrame := 0
+		activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
+		if activeAnim == nil {
+			// force an up animation
+			activeAnim = sprite.ActiveAnimation(0, 2)
+		}
+		spriteFrame = activeAnim.Frame()
+
+		// draw the player
 		screen.DrawImage(
+			// grab a subimage of the spritesheet
 			sprite.Img.SubImage(
-				image.Rect(0, 0, 16, 16),
+				g.yellowBatSpriteSheet.Rect(spriteFrame),
 			).(*ebiten.Image),
 			&opts,
 		)
@@ -189,36 +227,59 @@ func main() {
 		log.Fatal(err)
 	}
 
+	playerSpriteSheet := spritesheet.NewSpriteSheet(4, 7, 16)
+	yellowBatSpriteSheet := spritesheet.NewSpriteSheet(4, 7, 16)
+
 	game := Game{
-		player: &Player{
-			Sprite: &Sprite{
+		player: &entities.Player{
+			Sprite: &entities.Sprite{
 				Img: playerImg,
 				X:   50.0,
 				Y:   50.0,
+				Animations: map[entities.SpriteState]*animations.Animation{
+					entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
+					entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
+					entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
+					entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+				},
 			},
-			Health: 3,
+			Health: 5,
 		},
+		playerSpriteSheet: playerSpriteSheet,
 		enemies: []*Enemy{
 			{
-				Sprite: &Sprite{
+				Sprite: &entities.Sprite{
 					Img: yellowBatImg,
 					X:   100.0,
 					Y:   100.0,
+					Animations: map[entities.SpriteState]*animations.Animation{
+						entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+					},
 				},
 				FollowsPlayer: true,
 			},
 			{
-				Sprite: &Sprite{
+				Sprite: &entities.Sprite{
 					Img: yellowBatImg,
 					X:   150.0,
 					Y:   50.0,
+					Animations: map[entities.SpriteState]*animations.Animation{
+						entities.Up:    animations.NewAnimation(5, 13, 4, 20.0),
+						entities.Down:  animations.NewAnimation(4, 12, 4, 20.0),
+						entities.Left:  animations.NewAnimation(6, 14, 4, 20.0),
+						entities.Right: animations.NewAnimation(7, 15, 4, 20.0),
+					},
 				},
 				FollowsPlayer: true,
 			},
 		},
-		tilemapJSON: tilemapJSON,
-		tilemapImg:  tilemapImg,
-		cam:         NewCamera(0.0, 0.0),
+		yellowBatSpriteSheet: yellowBatSpriteSheet,
+		tilemapJSON:          tilemapJSON,
+		tilemapImg:           tilemapImg,
+		cam:                  NewCamera(0.0, 0.0),
 	}
 
 	if err := ebiten.RunGame(&game); err != nil {
