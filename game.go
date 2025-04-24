@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 	"simplegame/constants"
 	"simplegame/entities"
 	"simplegame/spritesheet"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -19,14 +21,26 @@ type Game struct {
 	enemies              []*entities.Enemy
 	tilemapJSON          *TilemapJSON
 	tilemapImg           *ebiten.Image
+	projectileImg        *ebiten.Image // may not be the best place for this
 	cam                  *Camera
 }
 
+var projectile_counter int = 0
+
 func (g *Game) Update() error {
+	var wg sync.WaitGroup
 	var prev_player_X float64
 	var prev_player_Y float64
 	prev_player_X = g.player.X
 	prev_player_Y = g.player.Y
+
+	// we modify projectiles again later one
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// update all projectiles
+		g.player.UpdateAllProjectiles()
+	}()
 
 	// move the player based on keyboar input (left, right, up down)
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
@@ -78,7 +92,47 @@ func (g *Game) Update() error {
 			}
 			activeAnim.Update()
 		}
+	}
 
+	// wait on updates before overwriting
+	wg.Wait()
+
+	// MouseButtonLeft Create new projectile IsMouseButtonPressed(ebiten.MouseButtonLeft) IsMouseButtonJustPressed
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		cursor_x, cursor_y := ebiten.CursorPosition()
+
+		// NOTE: this math was largely done in my head (as all game breaking math should be)
+		// and may not be accurate
+		gross_diff_x := math.Abs(float64(cursor_x) - g.player.X)
+		gross_diff_y := math.Abs(float64(cursor_y) - g.player.Y)
+
+		fmt.Println("x: ", gross_diff_x, ", y: ", gross_diff_y)
+
+		hypot := math.Sqrt(math.Pow(gross_diff_x, 2) + math.Pow(gross_diff_y, 2))
+		hypot_adj_factor := math.Pow(hypot/15, 2)
+
+		// fmt.Println("hypot_adj_factor: ", hypot_adj_factor)
+
+		sprite_Dx := gross_diff_x / hypot_adj_factor
+		sprite_Dy := gross_diff_y / hypot_adj_factor
+
+		// sprite_Dx = 1
+		// sprite_Dy = 1
+
+		g.player.Projectiles[projectile_counter] = &entities.Projectile{
+			Sprite: &entities.Sprite{
+				Img: g.projectileImg,
+				X:   g.player.X,
+				Y:   g.player.Y,
+				Dx:  sprite_Dx,
+				Dy:  sprite_Dy,
+			},
+			Damage:  10,
+			IsAlive: true,
+		}
+
+		projectile_counter = (projectile_counter + 1) % constants.NumberOfProjectiles
+		fmt.Println("projectile_counter: ", projectile_counter)
 	}
 
 	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, 320, 240)
@@ -162,6 +216,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		).(*ebiten.Image),
 		&opts,
 	)
+
+	opts.GeoM.Reset()
+
+	// draw projectile(s)
+	// Not good practice to have so many copies of the
+	// image, and to have to scale each one
+	for _, p := range g.player.Projectiles {
+		if p != nil && p.IsAlive {
+			opts.GeoM.Scale(0.5, 0.5)
+			// I think this is right, however my code is wrong :(
+			opts.GeoM.Translate(p.X, p.Y)
+			// opts.GeoM.Translate(g.cam.X, g.cam.Y)
+
+			screen.DrawImage(
+				p.Sprite.Img,
+				&opts,
+			)
+
+			opts.GeoM.Reset()
+		}
+	}
 
 	opts.GeoM.Reset()
 

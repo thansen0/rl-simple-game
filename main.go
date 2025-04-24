@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"simplegame/animations"
+	"simplegame/constants"
 	"simplegame/entities"
 	"simplegame/spritesheet"
 
@@ -14,7 +15,6 @@ import (
 
 func main() {
 	ebiten.SetWindowSize(640, 480)
-	ebiten.SetWindowTitle("Hello, World!")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	// load the image from file
@@ -25,6 +25,12 @@ func main() {
 	}
 	// load the image from file
 	yellowBatImg, _, err := ebitenutil.NewImageFromFile("assets/images/YellowsBat/SpriteSheet.png")
+	if err != nil {
+		// handle error
+		log.Fatal(err)
+	}
+	// load the image from file
+	projectileImg, _, err := ebitenutil.NewImageFromFile("assets/images/Projectile/Sprite.png")
 	if err != nil {
 		// handle error
 		log.Fatal(err)
@@ -57,7 +63,8 @@ func main() {
 					entities.Right: animations.NewAnimation(7, 15, 4, 14.0),
 				},
 			},
-			Health: 5,
+			Health:      5,
+			Projectiles: [constants.NumberOfProjectiles]*entities.Projectile{},
 		},
 		playerSpriteSheet: playerSpriteSheet,
 		enemies: []*entities.Enemy{
@@ -118,6 +125,7 @@ func main() {
 				FollowsPlayer: true,
 			},
 		},
+		projectileImg:        projectileImg,
 		yellowBatSpriteSheet: yellowBatSpriteSheet,
 		tilemapJSON:          tilemapJSON,
 		tilemapImg:           tilemapImg,
