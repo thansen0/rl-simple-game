@@ -80,6 +80,7 @@ func main() {
 						entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
 					},
 				},
+				IsAlive:       true,
 				FollowsPlayer: true,
 			},
 			{
@@ -94,6 +95,7 @@ func main() {
 						entities.Right: animations.NewAnimation(7, 15, 4, 9.0),
 					},
 				},
+				IsAlive:       true,
 				FollowsPlayer: true,
 			},
 			{
@@ -108,6 +110,7 @@ func main() {
 						entities.Right: animations.NewAnimation(7, 15, 4, 7.0),
 					},
 				},
+				IsAlive:       true,
 				FollowsPlayer: true,
 			},
 			{
@@ -122,6 +125,7 @@ func main() {
 						entities.Right: animations.NewAnimation(7, 15, 4, 11.0),
 					},
 				},
+				IsAlive:       true,
 				FollowsPlayer: true,
 			},
 		},
@@ -131,9 +135,6 @@ func main() {
 		tilemapImg:           tilemapImg,
 		cam:                  NewCamera(0.0, 0.0),
 	}
-
-	// set player position
-	// game.player.X, game.player.Y = game.tilemapJSON.GenValidPos()
 
 	// set random initialization points for enemies
 	for i := range game.enemies {

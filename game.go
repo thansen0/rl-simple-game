@@ -5,10 +5,10 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"simplegame/animations"
 	"simplegame/constants"
 	"simplegame/entities"
 	"simplegame/spritesheet"
-	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -28,19 +28,14 @@ type Game struct {
 var projectile_counter int = 0
 
 func (g *Game) Update() error {
-	var wg sync.WaitGroup
 	var prev_player_X float64
 	var prev_player_Y float64
 	prev_player_X = g.player.X
 	prev_player_Y = g.player.Y
 
 	// we modify projectiles again later one
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// update all projectiles
-		g.player.UpdateAllProjectiles()
-	}()
+	// update all projectiles
+	g.player.UpdateAllProjectiles()
 
 	// move the player based on keyboar input (left, right, up down)
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
@@ -95,16 +90,26 @@ func (g *Game) Update() error {
 	}
 
 	// wait on updates before overwriting
-	wg.Wait()
 
 	// start new thread to check whether any projectiles overlap with an enemy
-	// TODO TODO TODO
-	// wg.Add(1)
-	// go func() {
-	// 	defer wg.Done()
-	// 	// check for interactions with enemies
-	// 	g.player.UpdateProjectileInteractions()
-	// }()
+	// check for interactions with enemies
+	for i, en := range g.enemies {
+		if g.enemies[i] == nil {
+			continue
+		}
+		for j, proj := range g.player.Projectiles {
+			if g.player.Projectiles[j] == nil {
+				continue
+			}
+
+			if math.Abs(en.X-proj.X) < 3 && math.Abs(en.Y-proj.Y) < 2 {
+				// overlap, kill both
+				// TODO remove IsAlive, just relocate the bat and create another random bat
+				g.enemies[i] = g.CreateNewBat(g.enemies[i].Img)
+				g.player.Projectiles[j].IsAlive = false
+			}
+		}
+	}
 
 	// MouseButtonLeft Create new projectile IsMouseButtonPressed(ebiten.MouseButtonLeft) IsMouseButtonJustPressed
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -156,10 +161,12 @@ func (g *Game) Update() error {
 	)
 
 	for _, en := range g.enemies {
-		caught := PosMatch(g.player.Sprite, en.Sprite)
-		if caught {
-			// fmt.Println("Enemy caught the player!")
-			fmt.Print("")
+		if en.IsAlive {
+			caught := PosMatch(g.player.Sprite, en.Sprite)
+			if caught {
+				fmt.Println("Enemy caught the player!")
+				// fmt.Print("")
+			}
 		}
 	}
 
@@ -255,27 +262,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// technically only works for yellow bat enemies
 	for _, sprite := range g.enemies {
-		opts.GeoM.Translate(sprite.X, sprite.Y)
-		opts.GeoM.Translate(g.cam.X, g.cam.Y)
+		if sprite.IsAlive {
+			opts.GeoM.Translate(sprite.X, sprite.Y)
+			opts.GeoM.Translate(g.cam.X, g.cam.Y)
 
-		spriteFrame := 0
-		activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
-		if activeAnim == nil {
-			// force an up animation
-			activeAnim = sprite.ActiveAnimation(0, 2)
+			spriteFrame := 0
+			activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
+			if activeAnim == nil {
+				// force an up animation
+				activeAnim = sprite.ActiveAnimation(0, 2)
+			}
+			spriteFrame = activeAnim.Frame()
+
+			// draw the player
+			screen.DrawImage(
+				// grab a subimage of the spritesheet
+				sprite.Img.SubImage(
+					g.yellowBatSpriteSheet.Rect(spriteFrame),
+				).(*ebiten.Image),
+				&opts,
+			)
+
+			opts.GeoM.Reset()
 		}
-		spriteFrame = activeAnim.Frame()
-
-		// draw the player
-		screen.DrawImage(
-			// grab a subimage of the spritesheet
-			sprite.Img.SubImage(
-				g.yellowBatSpriteSheet.Rect(spriteFrame),
-			).(*ebiten.Image),
-			&opts,
-		)
-
-		opts.GeoM.Reset()
 	}
 
 	opts.GeoM.Reset()
@@ -285,4 +294,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // screen size/layout, not level
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 320, 240
+}
+
+// TODO move this function I don't like it here :(
+func (g *Game) CreateNewBat(batImg *ebiten.Image) *entities.Enemy {
+	g_x, g_y := g.tilemapJSON.GenValidPos()
+	return &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img: batImg,
+			X:   g_x,
+			Y:   g_y,
+			Animations: map[entities.SpriteState]*animations.Animation{
+				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
+			},
+		},
+		IsAlive:       true,
+		FollowsPlayer: true,
+	}
 }
