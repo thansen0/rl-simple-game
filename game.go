@@ -97,35 +97,47 @@ func (g *Game) Update() error {
 	// wait on updates before overwriting
 	wg.Wait()
 
+	// start new thread to check whether any projectiles overlap with an enemy
+	// TODO TODO TODO
+	// wg.Add(1)
+	// go func() {
+	// 	defer wg.Done()
+	// 	// check for interactions with enemies
+	// 	g.player.UpdateProjectileInteractions()
+	// }()
+
 	// MouseButtonLeft Create new projectile IsMouseButtonPressed(ebiten.MouseButtonLeft) IsMouseButtonJustPressed
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		cursor_x, cursor_y := ebiten.CursorPosition()
+		raw_cursor_x, raw_cursor_y := ebiten.CursorPosition()
+		// must convert cursor pos to game pos
+		cursor_x := float64(raw_cursor_x) - g.cam.X
+		cursor_y := float64(raw_cursor_y) - g.cam.Y
 
-		// NOTE: this math was largely done in my head (as all game breaking math should be)
-		// and may not be accurate
-		gross_diff_x := math.Abs(float64(cursor_x) - g.player.X)
-		gross_diff_y := math.Abs(float64(cursor_y) - g.player.Y)
+		gross_diff_x := float64(cursor_x) - g.player.X
+		gross_diff_y := float64(cursor_y) - g.player.Y
 
 		fmt.Println("x: ", gross_diff_x, ", y: ", gross_diff_y)
 
+		// also math.Hypot(gross_diff_x, gross_diff_y)
 		hypot := math.Sqrt(math.Pow(gross_diff_x, 2) + math.Pow(gross_diff_y, 2))
-		hypot_adj_factor := math.Pow(hypot/15, 2)
+		if hypot == 0 {
+			// consider doing something better?
+			hypot = 1
+			gross_diff_x = 1
+		}
 
-		// fmt.Println("hypot_adj_factor: ", hypot_adj_factor)
+		speed := 240.0 // px / second
 
-		sprite_Dx := gross_diff_x / hypot_adj_factor
-		sprite_Dy := gross_diff_y / hypot_adj_factor
-
-		// sprite_Dx = 1
-		// sprite_Dy = 1
+		sprite_Dx := (gross_diff_x / hypot) * speed
+		sprite_Dy := (gross_diff_y / hypot) * speed
 
 		g.player.Projectiles[projectile_counter] = &entities.Projectile{
 			Sprite: &entities.Sprite{
 				Img: g.projectileImg,
-				X:   g.player.X,
-				Y:   g.player.Y,
-				Dx:  sprite_Dx,
-				Dy:  sprite_Dy,
+				X:   g.player.X + 5,
+				Y:   g.player.Y + 12,
+				Dx:  sprite_Dx / 60, // 60 fps/tps
+				Dy:  sprite_Dy / 60,
 			},
 			Damage:  10,
 			IsAlive: true,
@@ -146,7 +158,8 @@ func (g *Game) Update() error {
 	for _, en := range g.enemies {
 		caught := PosMatch(g.player.Sprite, en.Sprite)
 		if caught {
-			fmt.Println("Enemy caught the player!")
+			// fmt.Println("Enemy caught the player!")
+			fmt.Print("")
 		}
 	}
 
@@ -224,10 +237,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// image, and to have to scale each one
 	for _, p := range g.player.Projectiles {
 		if p != nil && p.IsAlive {
+			// really should scale this before loading
 			opts.GeoM.Scale(0.5, 0.5)
-			// I think this is right, however my code is wrong :(
 			opts.GeoM.Translate(p.X, p.Y)
-			// opts.GeoM.Translate(g.cam.X, g.cam.Y)
+			opts.GeoM.Translate(g.cam.X, g.cam.Y)
 
 			screen.DrawImage(
 				p.Sprite.Img,
