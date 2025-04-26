@@ -107,6 +107,9 @@ func (g *Game) Update() error {
 				// TODO remove IsAlive, just relocate the bat and create another random bat
 				g.enemies[i] = g.CreateNewBat(g.enemies[i].Img)
 				g.player.Projectiles[j].IsAlive = false
+
+				// Create new enemy; each death creates new new ones
+				g.enemies = append(g.enemies, g.CreateNewBat(g.enemies[i].Img))
 			}
 		}
 	}
@@ -160,6 +163,7 @@ func (g *Game) Update() error {
 		240,
 	)
 
+	// Check if the player has been caught
 	for _, en := range g.enemies {
 		if en.IsAlive {
 			caught := PosMatch(g.player.Sprite, en.Sprite)

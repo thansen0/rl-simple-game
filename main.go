@@ -30,6 +30,24 @@ func main() {
 		log.Fatal(err)
 	}
 	// load the image from file
+	BlueBatImg, _, err := ebitenutil.NewImageFromFile("assets/images/BlueBat/SpriteSheet.png")
+	if err != nil {
+		// handle error
+		log.Fatal(err)
+	}
+	// load the image from file
+	ButterflyImg, _, err := ebitenutil.NewImageFromFile("assets/images/Butterfly/SpriteSheet.png")
+	if err != nil {
+		// handle error
+		log.Fatal(err)
+	}
+	// load the image from file
+	ButterflyBlueImg, _, err := ebitenutil.NewImageFromFile("assets/images/ButterflyBlue/SpriteSheet.png")
+	if err != nil {
+		// handle error
+		log.Fatal(err)
+	}
+	// load the image from file
 	projectileImg, _, err := ebitenutil.NewImageFromFile("assets/images/Projectile/Sprite.png")
 	if err != nil {
 		// handle error
@@ -85,7 +103,7 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: yellowBatImg,
+					Img: BlueBatImg,
 					X:   100.0,
 					Y:   100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
@@ -100,7 +118,7 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: yellowBatImg,
+					Img: ButterflyImg,
 					X:   100.0,
 					Y:   100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
@@ -115,7 +133,7 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: yellowBatImg,
+					Img: ButterflyBlueImg,
 					X:   100.0,
 					Y:   100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
