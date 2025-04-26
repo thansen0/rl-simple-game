@@ -6,6 +6,10 @@ type Logic interface {
 	Update()
 }
 
+// NOTE
+// None of the game logic is in any of these interface implementations yet,
+// they're a work in progress
+
 // func (l *Logic) Init() {
 // 	fmt.Println("This function should be re-implemented")
 // }

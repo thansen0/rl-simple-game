@@ -14,8 +14,6 @@ const (
 	alpha   = 0.1 // learning rate
 	gamma   = 0.9 // discount factor
 	epsilon = 0.2 // exploration rate
-	// episodes  = 1000
-	// goalState = 4
 )
 
 type QLearning struct {
@@ -46,11 +44,6 @@ func (ql *QLearning) Action(enemy_x, enemy_y float64) entities.SpriteState {
 	qVals := ql.Q[calcState(enemy_x, enemy_y)]
 	// TODO this fails in initial state of 0
 	best := maxIndex(qVals)
-	// for i := 1; i < actions; i++ {
-	// 	if qVals[i] > qVals[best] {
-	// 		best = i
-	// 	}
-	// }
 	// I'm not using a % here because I want to ensure
 	// errors are caught
 	return entities.SpriteState(best)

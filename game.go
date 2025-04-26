@@ -5,24 +5,22 @@ import (
 	"image"
 	"image/color"
 	"math"
-	"simplegame/animations"
 	"simplegame/constants"
 	"simplegame/entities"
-	"simplegame/spritesheet"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Game struct {
 	// the image and position variables for our player
-	player               *entities.Player
-	playerSpriteSheet    *spritesheet.SpriteSheet
-	yellowBatSpriteSheet *spritesheet.SpriteSheet
-	enemies              []*entities.Enemy
-	tilemapJSON          *TilemapJSON
-	tilemapImg           *ebiten.Image
-	projectileImg        *ebiten.Image // may not be the best place for this
-	cam                  *Camera
+	player        *entities.Player
+	enemies       []*entities.Enemy
+	tilemapJSON   *TilemapJSON
+	tilemapImg    *ebiten.Image
+	projectileImg *ebiten.Image // may not be the best place for this
+	cam           *Camera
+	// followMethod      *logic.Logic
+
 }
 
 var projectile_counter int = 0
@@ -89,8 +87,6 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// wait on updates before overwriting
-
 	// start new thread to check whether any projectiles overlap with an enemy
 	// check for interactions with enemies
 	for i, en := range g.enemies {
@@ -102,14 +98,14 @@ func (g *Game) Update() error {
 				continue
 			}
 
-			if math.Abs(en.X-proj.X) < 3 && math.Abs(en.Y-proj.Y) < 2 {
+			if math.Abs((en.X+4)-proj.X) < 4 && math.Abs((en.Y+4)-proj.Y) < 4 {
 				// overlap, kill both
 				// TODO remove IsAlive, just relocate the bat and create another random bat
-				g.enemies[i] = g.CreateNewBat(g.enemies[i].Img)
+				g.enemies[i] = en.CreateNewEnemy(g.tilemapJSON.GenValidPos())
 				g.player.Projectiles[j].IsAlive = false
 
 				// Create new enemy; each death creates new new ones
-				g.enemies = append(g.enemies, g.CreateNewBat(g.enemies[i].Img))
+				g.enemies = append(g.enemies, en.CreateNewEnemy(g.tilemapJSON.GenValidPos()))
 			}
 		}
 	}
@@ -123,8 +119,6 @@ func (g *Game) Update() error {
 
 		gross_diff_x := float64(cursor_x) - g.player.X
 		gross_diff_y := float64(cursor_y) - g.player.Y
-
-		fmt.Println("x: ", gross_diff_x, ", y: ", gross_diff_y)
 
 		// also math.Hypot(gross_diff_x, gross_diff_y)
 		hypot := math.Sqrt(math.Pow(gross_diff_x, 2) + math.Pow(gross_diff_y, 2))
@@ -152,7 +146,7 @@ func (g *Game) Update() error {
 		}
 
 		projectile_counter = (projectile_counter + 1) % constants.NumberOfProjectiles
-		fmt.Println("projectile_counter: ", projectile_counter)
+		// fmt.Println("projectile_counter: ", projectile_counter)
 	}
 
 	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, 320, 240)
@@ -168,8 +162,8 @@ func (g *Game) Update() error {
 		if en.IsAlive {
 			caught := PosMatch(g.player.Sprite, en.Sprite)
 			if caught {
-				fmt.Println("Enemy caught the player!")
-				// fmt.Print("")
+				// fmt.Println("Enemy caught the player!")
+				fmt.Print("")
 			}
 		}
 	}
@@ -236,7 +230,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(
 		// grab a subimage of the spritesheet
 		g.player.Img.SubImage(
-			g.playerSpriteSheet.Rect(playerFrame),
+			g.player.SpriteSheet.Rect(playerFrame),
 		).(*ebiten.Image),
 		&opts,
 	)
@@ -264,7 +258,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	opts.GeoM.Reset()
 
-	// technically only works for yellow bat enemies
+	// prints out enemies, but also doesn't?
 	for _, sprite := range g.enemies {
 		if sprite.IsAlive {
 			opts.GeoM.Translate(sprite.X, sprite.Y)
@@ -282,7 +276,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			screen.DrawImage(
 				// grab a subimage of the spritesheet
 				sprite.Img.SubImage(
-					g.yellowBatSpriteSheet.Rect(spriteFrame),
+					sprite.SpriteSheet.Rect(spriteFrame),
 				).(*ebiten.Image),
 				&opts,
 			)
@@ -298,24 +292,4 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // screen size/layout, not level
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 320, 240
-}
-
-// TODO move this function I don't like it here :(
-func (g *Game) CreateNewBat(batImg *ebiten.Image) *entities.Enemy {
-	g_x, g_y := g.tilemapJSON.GenValidPos()
-	return &entities.Enemy{
-		Sprite: &entities.Sprite{
-			Img: batImg,
-			X:   g_x,
-			Y:   g_y,
-			Animations: map[entities.SpriteState]*animations.Animation{
-				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
-				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
-				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
-				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
-			},
-		},
-		IsAlive:       true,
-		FollowsPlayer: true,
-	}
 }

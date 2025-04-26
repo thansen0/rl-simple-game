@@ -65,15 +65,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// maps for performing animation
 	playerSpriteSheet := spritesheet.NewSpriteSheet(4, 7, 16)
-	yellowBatSpriteSheet := spritesheet.NewSpriteSheet(4, 7, 16)
+	EnemySpriteSheet := spritesheet.NewSpriteSheet(4, 7, 16)
 
 	game := Game{
 		player: &entities.Player{
 			Sprite: &entities.Sprite{
-				Img: playerImg,
-				X:   50.0,
-				Y:   50.0,
+				Img:         playerImg,
+				SpriteSheet: playerSpriteSheet,
+				X:           50.0,
+				Y:           50.0,
 				Animations: map[entities.SpriteState]*animations.Animation{
 					entities.Up:    animations.NewAnimation(5, 13, 4, 14.0),
 					entities.Down:  animations.NewAnimation(4, 12, 4, 14.0),
@@ -84,13 +86,13 @@ func main() {
 			Health:      5,
 			Projectiles: [constants.NumberOfProjectiles]*entities.Projectile{},
 		},
-		playerSpriteSheet: playerSpriteSheet,
 		enemies: []*entities.Enemy{
 			{
 				Sprite: &entities.Sprite{
-					Img: yellowBatImg,
-					X:   100,
-					Y:   100.0,
+					Img:         yellowBatImg,
+					SpriteSheet: EnemySpriteSheet,
+					X:           100,
+					Y:           100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
 						entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
 						entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
@@ -103,9 +105,10 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: BlueBatImg,
-					X:   100.0,
-					Y:   100.0,
+					Img:         BlueBatImg,
+					SpriteSheet: EnemySpriteSheet,
+					X:           100.0,
+					Y:           100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
 						entities.Up:    animations.NewAnimation(5, 13, 4, 9.0),
 						entities.Down:  animations.NewAnimation(4, 12, 4, 9.0),
@@ -118,9 +121,10 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: ButterflyImg,
-					X:   100.0,
-					Y:   100.0,
+					Img:         ButterflyImg,
+					SpriteSheet: EnemySpriteSheet,
+					X:           100.0,
+					Y:           100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
 						entities.Up:    animations.NewAnimation(5, 13, 4, 7.0),
 						entities.Down:  animations.NewAnimation(4, 12, 4, 7.0),
@@ -133,9 +137,10 @@ func main() {
 			},
 			{
 				Sprite: &entities.Sprite{
-					Img: ButterflyBlueImg,
-					X:   100.0,
-					Y:   100.0,
+					Img:         ButterflyBlueImg,
+					SpriteSheet: EnemySpriteSheet,
+					X:           100.0,
+					Y:           100.0,
 					Animations: map[entities.SpriteState]*animations.Animation{
 						entities.Up:    animations.NewAnimation(5, 13, 4, 11.0),
 						entities.Down:  animations.NewAnimation(4, 12, 4, 11.0),
@@ -147,11 +152,10 @@ func main() {
 				FollowsPlayer: true,
 			},
 		},
-		projectileImg:        projectileImg,
-		yellowBatSpriteSheet: yellowBatSpriteSheet,
-		tilemapJSON:          tilemapJSON,
-		tilemapImg:           tilemapImg,
-		cam:                  NewCamera(0.0, 0.0),
+		projectileImg: projectileImg,
+		tilemapJSON:   tilemapJSON,
+		tilemapImg:    tilemapImg,
+		cam:           NewCamera(0.0, 0.0),
 	}
 
 	// set random initialization points for enemies

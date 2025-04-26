@@ -2,6 +2,7 @@ package entities
 
 import (
 	"simplegame/animations"
+	"simplegame/spritesheet"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -17,6 +18,7 @@ const (
 
 type Sprite struct {
 	Img          *ebiten.Image
+	SpriteSheet  *spritesheet.SpriteSheet
 	X, Y, Dx, Dy float64
 	Animations   map[SpriteState]*animations.Animation
 }

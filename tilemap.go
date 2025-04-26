@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"math/rand"
 	"os"
@@ -66,7 +65,6 @@ func (tm *TilemapJSON) GenValidYPos(_ float64) float64 {
 
 func (tm *TilemapJSON) GenValidPos() (float64, float64) {
 	var rand_x_pos float64 = tm.GenValidXPos()
-	fmt.Println("X:", rand_x_pos)
 	return rand_x_pos, tm.GenValidYPos(rand_x_pos)
 }
 
