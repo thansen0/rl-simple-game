@@ -7,14 +7,17 @@ import (
 	"simplegame/animations"
 	"simplegame/constants"
 	"simplegame/entities"
+	"simplegame/logic"
 	"simplegame/spritesheet"
+	"simplegame/tilemap"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 func main() {
-	ebiten.SetWindowSize(640, 480)
+	// ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowSize(1280, 960)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	// load the image from file
@@ -60,7 +63,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tilemapJSON, err := NewTilemapJSON("assets/maps/TileSet/spawn.json")
+	tilemapJSON, err := tilemap.NewTilemapJSON("assets/maps/TileSet/spawn.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -86,6 +89,7 @@ func main() {
 			Health:      5,
 			Projectiles: [constants.NumberOfProjectiles]*entities.Projectile{},
 		},
+		enemyLogic: &logic.SimpleFollow{},
 		enemies: []*entities.Enemy{
 			{
 				Sprite: &entities.Sprite{
@@ -156,6 +160,11 @@ func main() {
 		tilemapJSON:   tilemapJSON,
 		tilemapImg:    tilemapImg,
 		cam:           NewCamera(0.0, 0.0),
+		gameStats: GameStats{
+			AliveEnemies:    4,
+			DeadEnemies:     0,
+			ProjectilesShot: 0,
+		},
 	}
 
 	// set random initialization points for enemies

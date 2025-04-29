@@ -1,4 +1,4 @@
-package main
+package tilemap
 
 import (
 	"encoding/json"
@@ -66,6 +66,18 @@ func (tm *TilemapJSON) GenValidYPos(_ float64) float64 {
 func (tm *TilemapJSON) GenValidPos() (float64, float64) {
 	var rand_x_pos float64 = tm.GenValidXPos()
 	return rand_x_pos, tm.GenValidYPos(rand_x_pos)
+}
+
+func (tm *TilemapJSON) GenValidPosOutsideCamera(player_x, player_y float64) (float64, float64) {
+	var rand_x_pos float64 = tm.GenValidXPos()
+	var rand_y_pos float64 = tm.GenValidYPos(rand_x_pos)
+
+	if math.Abs(rand_x_pos-player_x) < (constants.CameraWidth/2) && math.Abs(rand_y_pos-player_y) < (constants.CameraHeight/2) {
+		// too close to player, generate new position
+		return tm.GenValidPosOutsideCamera(player_x, player_y)
+	}
+
+	return rand_x_pos, rand_y_pos
 }
 
 func PosMatch(s1, s2 *entities.Sprite) bool {

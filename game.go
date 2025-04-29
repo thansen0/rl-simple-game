@@ -7,20 +7,28 @@ import (
 	"math"
 	"simplegame/constants"
 	"simplegame/entities"
+	"simplegame/logic"
+	"simplegame/tilemap"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
+type GameStats struct {
+	AliveEnemies    uint32
+	DeadEnemies     uint32
+	ProjectilesShot uint32
+}
+
 type Game struct {
-	// the image and position variables for our player
+	gameStats     GameStats
+	enemyLogic    logic.Logic
 	player        *entities.Player
 	enemies       []*entities.Enemy
-	tilemapJSON   *TilemapJSON
+	tilemapJSON   *tilemap.TilemapJSON
 	tilemapImg    *ebiten.Image
 	projectileImg *ebiten.Image // may not be the best place for this
 	cam           *Camera
-	// followMethod      *logic.Logic
-
 }
 
 var projectile_counter int = 0
@@ -37,21 +45,21 @@ func (g *Game) Update() error {
 
 	// move the player based on keyboar input (left, right, up down)
 	if ebiten.IsKeyPressed(ebiten.KeyLeft) || ebiten.IsKeyPressed(ebiten.KeyA) {
-		g.player.X = g.tilemapJSON.GetValidXPos(g.player.X, -2)
+		g.player.X = g.tilemapJSON.GetValidXPos(prev_player_X, -2)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyRight) || ebiten.IsKeyPressed(ebiten.KeyD) {
-		g.player.X = g.tilemapJSON.GetValidXPos(g.player.X, 2)
+		g.player.X = g.tilemapJSON.GetValidXPos(prev_player_X, 2)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyUp) || ebiten.IsKeyPressed(ebiten.KeyW) {
-		g.player.Y = g.tilemapJSON.GetValidYPos(g.player.Y, -2)
+		g.player.Y = g.tilemapJSON.GetValidYPos(prev_player_Y, -2)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyDown) || ebiten.IsKeyPressed(ebiten.KeyS) {
-		g.player.Y = g.tilemapJSON.GetValidYPos(g.player.Y, 2)
+		g.player.Y = g.tilemapJSON.GetValidYPos(prev_player_Y, 2)
 	}
 
 	// needs to be updated for other functions
-	g.player.Dx = g.player.X - prev_player_X
-	g.player.Dy = g.player.Y - prev_player_Y
+	g.player.Dx = prev_player_X - prev_player_X
+	g.player.Dy = prev_player_Y - prev_player_Y
 
 	activeAnim := g.player.ActiveAnimation(int(g.player.Dx), int(g.player.Dy))
 	if activeAnim != nil {
@@ -60,57 +68,129 @@ func (g *Game) Update() error {
 
 	// add behavior to the enemies
 	for _, sprite := range g.enemies {
-		if sprite.FollowsPlayer {
-			prev_player_X = sprite.X
-			prev_player_Y = sprite.Y
+		// really should be returning a whole enemy struct to
+		// replace the existing one in the slice so we can use a
+		// channel
+		sprite.X, sprite.Y, sprite.Dx, sprite.Dy = g.enemyLogic.Action(g.tilemapJSON, sprite, g.player.X, g.player.Y)
 
-			if sprite.X < g.player.X {
-				sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, 1)
-			} else if sprite.X > g.player.X {
-				sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, -1)
-			}
-			if sprite.Y < g.player.Y {
-				sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, 1)
-			} else if sprite.Y > g.player.Y {
-				sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, -1)
-			}
+		// sprite is a pointer, so we're updating in place
+		// prev_player_X = sprite.X
+		// prev_player_Y = sprite.Y
 
-			sprite.Dx = sprite.X - prev_player_X
-			sprite.Dy = sprite.Y - prev_player_Y
+		// if sprite.X < g.player.X {
+		// 	sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, 1)
+		// } else if sprite.X > g.player.X {
+		// 	sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, -1)
+		// }
+		// if sprite.Y < g.player.Y {
+		// 	sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, 1)
+		// } else if sprite.Y > g.player.Y {
+		// 	sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, -1)
+		// }
 
-			activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
-			if activeAnim == nil {
-				// force an up animation
-				activeAnim = sprite.ActiveAnimation(0, 2)
-			}
-			activeAnim.Update()
-		}
+		// sprite.Dx = sprite.X - prev_player_X
+		// sprite.Dy = sprite.Y - prev_player_Y
+
+		// activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
+		// if activeAnim == nil {
+		// 	// force an up animation
+		// 	activeAnim = sprite.ActiveAnimation(0, 2)
+		// }
+		// activeAnim.Update()
 	}
 
+	////////////////////////////////////////////////
 	// start new thread to check whether any projectiles overlap with an enemy
 	// check for interactions with enemies
-	for i, en := range g.enemies {
-		if g.enemies[i] == nil {
+	for i, proj := range g.player.Projectiles {
+		if g.player.Projectiles[i] == nil {
 			continue
 		}
-		for j, proj := range g.player.Projectiles {
-			if g.player.Projectiles[j] == nil {
+		for j, en := range g.enemies {
+			if g.enemies[j] == nil {
 				continue
 			}
 
 			if math.Abs((en.X+4)-proj.X) < 4 && math.Abs((en.Y+4)-proj.Y) < 4 {
 				// overlap, kill both
-				// TODO remove IsAlive, just relocate the bat and create another random bat
-				g.enemies[i] = en.CreateNewEnemy(g.tilemapJSON.GenValidPos())
-				g.player.Projectiles[j].IsAlive = false
+				g.enemies[j] = en.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
+				g.player.Projectiles[i].IsAlive = false
 
 				// Create new enemy; each death creates new new ones
-				g.enemies = append(g.enemies, en.CreateNewEnemy(g.tilemapJSON.GenValidPos()))
+				g.enemies = append(g.enemies, en.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
+
+				g.gameStats.AliveEnemies += 2
+				g.gameStats.DeadEnemies += 1
 			}
 		}
 	}
 
-	// MouseButtonLeft Create new projectile IsMouseButtonPressed(ebiten.MouseButtonLeft) IsMouseButtonJustPressed
+	// var wg sync.WaitGroup
+
+	// type CollisionResult struct {
+	// 	ProjIndex  int
+	// 	EnemyIndex int
+	// }
+
+	// // Channel to collect results safely
+	// collisionCh := make(chan CollisionResult, 10000)
+
+	// // Split work into chunks (one chunk per projectile, or batch them)
+	// for i, proj := range g.player.Projectiles {
+	// 	if proj == nil {
+	// 		continue
+	// 	}
+
+	// 	wg.Add(1)
+	// 	go func(projIndex int, proj *entities.Projectile) {
+	// 		defer wg.Done()
+
+	// 		for j, en := range g.enemies {
+	// 			if en == nil {
+	// 				continue
+	// 			}
+
+	// 			if math.Abs((en.X+4)-proj.X) < 4 && math.Abs((en.Y+4)-proj.Y) < 4 {
+	// 				// Report collision (defer the actual modification)
+	// 				collisionCh <- CollisionResult{ProjIndex: projIndex, EnemyIndex: j}
+	// 				break // Once a projectile hits, it usually disappears
+	// 			}
+	// 		}
+	// 	}(i, proj)
+	// }
+
+	// // Close channel when all goroutines are done
+	// go func() {
+	// 	wg.Wait()
+	// 	close(collisionCh)
+	// }()
+
+	// // Handle all the enemy collisions sequentially
+	// for collision := range collisionCh {
+	// 	i := collision.ProjIndex
+	// 	j := collision.EnemyIndex
+
+	// 	if g.player.Projectiles[i] != nil {
+	// 		// Kill projectile
+	// 		// TODO change back to false, just for fun
+	// 		// g.player.Projectiles[i].IsAlive = false
+	// 	}
+
+	// 	if g.enemies[j] != nil {
+	// 		// Respawn enemy
+	// 		g.enemies[j] = g.enemies[j].CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
+
+	// 		// Create an extra new enemy
+	// 		newEnemy := g.enemies[j].CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
+	// 		g.enemies = append(g.enemies, newEnemy)
+
+	// 		g.gameStats.AliveEnemies += 2
+	// 		g.gameStats.DeadEnemies += 1
+	// 	}
+	// }
+	////////////////////////////////////////////////////
+
+	// MouseButtonLeft Create new projectile
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		raw_cursor_x, raw_cursor_y := ebiten.CursorPosition()
 		// must convert cursor pos to game pos
@@ -145,28 +225,29 @@ func (g *Game) Update() error {
 			IsAlive: true,
 		}
 
+		g.gameStats.ProjectilesShot += 1
 		projectile_counter = (projectile_counter + 1) % constants.NumberOfProjectiles
 		// fmt.Println("projectile_counter: ", projectile_counter)
 	}
 
-	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, 320, 240)
+	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, constants.CameraWidth, constants.CameraHeight)
 	g.cam.Constrain(
 		float64(g.tilemapJSON.Layers[0].Width)*constants.Tilesize,
 		float64(g.tilemapJSON.Layers[0].Height)*constants.Tilesize,
-		320,
-		240,
+		constants.CameraWidth,
+		constants.CameraHeight,
 	)
 
 	// Check if the player has been caught
-	for _, en := range g.enemies {
-		if en.IsAlive {
-			caught := PosMatch(g.player.Sprite, en.Sprite)
-			if caught {
-				// fmt.Println("Enemy caught the player!")
-				fmt.Print("")
-			}
-		}
-	}
+	// for _, en := range g.enemies {
+	// 	if en.IsAlive {
+	// 		caught := tilemap.PosMatch(g.player.Sprite, en.Sprite)
+	// 		if caught {
+	// 			// fmt.Println("Enemy caught the player!")
+	// 			fmt.Print("")
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
@@ -174,7 +255,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	// fill the screen with a nice sky color
-	screen.Fill(color.RGBA{120, 180, 255, 255})
+	// screen.Fill(color.RGBA{120, 180, 255, 255})
 
 	opts := ebiten.DrawImageOptions{}
 
@@ -287,9 +368,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	opts.GeoM.Reset()
 
+	// add transparent HUD
+	g.drawHUD(screen)
+
 }
 
 // screen size/layout, not level
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 320, 240
+}
+
+func (g *Game) drawHUD(screen *ebiten.Image) {
+	// Create a semi-transparent rectangle
+	hud := ebiten.NewImage(140, 80)
+	hud.Fill(color.RGBA{0, 0, 0, 128}) // black with 50% transparency (128/255)
+
+	// Draw the rectangle at top-left corner
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(5, 5)
+	// op.GeoM.Scale(0.5, 0.5)
+	screen.DrawImage(hud, op)
+
+	// Now draw text (health, enemies, etc.)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies: %d", g.gameStats.AliveEnemies), 20, 20)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kill Count: %d", g.gameStats.DeadEnemies), 20, 40)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Projectiles: %d", g.gameStats.ProjectilesShot), 20, 60)
 }
