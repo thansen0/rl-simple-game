@@ -10,9 +10,9 @@ type SimpleFollow struct{}
 // Nothing to update
 func (f *SimpleFollow) Init() {}
 
-func (f *SimpleFollow) Action(tm *tilemap.TilemapJSON, sprite *entities.Enemy, player_x, player_y float64) (X, Y, delta_X, delta_Y float64) {
-	prev_player_X := sprite.X
-	prev_player_Y := sprite.Y
+func (f *SimpleFollow) Action(tm *tilemap.TilemapJSON, cur_sprite *entities.Enemy, player_x, player_y float64) (en *entities.Enemy) {
+	prev_player_X := cur_sprite.X
+	prev_player_Y := cur_sprite.Y
 
 	if prev_player_X < player_x {
 		prev_player_X = tm.GetValidXPos(prev_player_X, 1)
@@ -25,17 +25,29 @@ func (f *SimpleFollow) Action(tm *tilemap.TilemapJSON, sprite *entities.Enemy, p
 		prev_player_Y = tm.GetValidYPos(prev_player_Y, -1)
 	}
 
-	dx := sprite.X - prev_player_X
-	dy := sprite.Y - prev_player_Y
+	dx := cur_sprite.X - prev_player_X
+	dy := cur_sprite.Y - prev_player_Y
 
-	activeAnim := sprite.ActiveAnimation(int(dx), int(dy))
+	activeAnim := cur_sprite.ActiveAnimation(int(dx), int(dy))
 	if activeAnim == nil {
 		// force an up animation
-		activeAnim = sprite.ActiveAnimation(0, 2)
+		activeAnim = cur_sprite.ActiveAnimation(0, 2)
 	}
 	activeAnim.Update()
 
-	return prev_player_X, prev_player_Y, dx, dy
+	enn := &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img:         cur_sprite.Img,
+			SpriteSheet: cur_sprite.SpriteSheet,
+			X:           prev_player_X,
+			Y:           prev_player_Y,
+			Animations:  cur_sprite.Animations,
+		},
+		IsAlive:       cur_sprite.IsAlive,
+		FollowsPlayer: true,
+	}
+
+	return enn
 }
 
 // Update really doesn't matter here, since there is no

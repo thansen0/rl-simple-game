@@ -9,6 +9,7 @@ import (
 	"simplegame/entities"
 	"simplegame/logic"
 	"simplegame/tilemap"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -31,13 +32,21 @@ type Game struct {
 	cam           *Camera
 }
 
-var projectile_counter int = 0
+type EnemyIndex struct {
+	index int
+	enn   *entities.Enemy
+}
+
+// must have a defined size or else the program locks
+var editEnemyCh = make(chan EnemyIndex, 500000)
 
 func (g *Game) Update() error {
 	var prev_player_X float64
 	var prev_player_Y float64
 	prev_player_X = g.player.X
 	prev_player_Y = g.player.Y
+
+	var editEnemyWg sync.WaitGroup
 
 	// we modify projectiles again later one
 	// update all projectiles
@@ -67,128 +76,33 @@ func (g *Game) Update() error {
 	}
 
 	// add behavior to the enemies
-	for _, sprite := range g.enemies {
+	for i, sprite := range g.enemies {
 		// really should be returning a whole enemy struct to
 		// replace the existing one in the slice so we can use a
 		// channel
-		sprite.X, sprite.Y, sprite.Dx, sprite.Dy = g.enemyLogic.Action(g.tilemapJSON, sprite, g.player.X, g.player.Y)
+		editEnemyWg.Add(1)
+		go func(cur_sprite *entities.Enemy, player_cur_x, player_cur_y float64, i int) {
+			// check for projectile collision
+			for _, proj := range g.player.Projectiles {
+				if proj == nil {
+					continue
+				}
+				if math.Abs((cur_sprite.X+4)-proj.X) < 4 && math.Abs((cur_sprite.Y+4)-proj.Y) < 4 {
+					// overlap, kill both
+					cur_sprite = cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))
+					// editEnemyCh <- EnemyIndex{-1, sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))}
+					// g.player.Projectiles[j].IsAlive = false
 
-		// sprite is a pointer, so we're updating in place
-		// prev_player_X = sprite.X
-		// prev_player_Y = sprite.Y
-
-		// if sprite.X < g.player.X {
-		// 	sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, 1)
-		// } else if sprite.X > g.player.X {
-		// 	sprite.X = g.tilemapJSON.GetValidXPos(sprite.X, -1)
-		// }
-		// if sprite.Y < g.player.Y {
-		// 	sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, 1)
-		// } else if sprite.Y > g.player.Y {
-		// 	sprite.Y = g.tilemapJSON.GetValidYPos(sprite.Y, -1)
-		// }
-
-		// sprite.Dx = sprite.X - prev_player_X
-		// sprite.Dy = sprite.Y - prev_player_Y
-
-		// activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
-		// if activeAnim == nil {
-		// 	// force an up animation
-		// 	activeAnim = sprite.ActiveAnimation(0, 2)
-		// }
-		// activeAnim.Update()
-	}
-
-	////////////////////////////////////////////////
-	// start new thread to check whether any projectiles overlap with an enemy
-	// check for interactions with enemies
-	for i, proj := range g.player.Projectiles {
-		if g.player.Projectiles[i] == nil {
-			continue
-		}
-		for j, en := range g.enemies {
-			if g.enemies[j] == nil {
-				continue
+					// Create new enemy; each death creates new new ones
+					// g.enemies = append(g.enemies, sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
+					editEnemyCh <- EnemyIndex{-1, cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))}
+				}
 			}
 
-			if math.Abs((en.X+4)-proj.X) < 4 && math.Abs((en.Y+4)-proj.Y) < 4 {
-				// overlap, kill both
-				g.enemies[j] = en.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
-				g.player.Projectiles[i].IsAlive = false
-
-				// Create new enemy; each death creates new new ones
-				g.enemies = append(g.enemies, en.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
-
-				g.gameStats.AliveEnemies += 2
-				g.gameStats.DeadEnemies += 1
-			}
-		}
+			editEnemyCh <- EnemyIndex{i, g.enemyLogic.Action(g.tilemapJSON, cur_sprite, player_cur_x, player_cur_y)}
+			editEnemyWg.Done()
+		}(sprite, g.player.X, g.player.Y, i)
 	}
-
-	// var wg sync.WaitGroup
-
-	// type CollisionResult struct {
-	// 	ProjIndex  int
-	// 	EnemyIndex int
-	// }
-
-	// // Channel to collect results safely
-	// collisionCh := make(chan CollisionResult, 10000)
-
-	// // Split work into chunks (one chunk per projectile, or batch them)
-	// for i, proj := range g.player.Projectiles {
-	// 	if proj == nil {
-	// 		continue
-	// 	}
-
-	// 	wg.Add(1)
-	// 	go func(projIndex int, proj *entities.Projectile) {
-	// 		defer wg.Done()
-
-	// 		for j, en := range g.enemies {
-	// 			if en == nil {
-	// 				continue
-	// 			}
-
-	// 			if math.Abs((en.X+4)-proj.X) < 4 && math.Abs((en.Y+4)-proj.Y) < 4 {
-	// 				// Report collision (defer the actual modification)
-	// 				collisionCh <- CollisionResult{ProjIndex: projIndex, EnemyIndex: j}
-	// 				break // Once a projectile hits, it usually disappears
-	// 			}
-	// 		}
-	// 	}(i, proj)
-	// }
-
-	// // Close channel when all goroutines are done
-	// go func() {
-	// 	wg.Wait()
-	// 	close(collisionCh)
-	// }()
-
-	// // Handle all the enemy collisions sequentially
-	// for collision := range collisionCh {
-	// 	i := collision.ProjIndex
-	// 	j := collision.EnemyIndex
-
-	// 	if g.player.Projectiles[i] != nil {
-	// 		// Kill projectile
-	// 		// TODO change back to false, just for fun
-	// 		// g.player.Projectiles[i].IsAlive = false
-	// 	}
-
-	// 	if g.enemies[j] != nil {
-	// 		// Respawn enemy
-	// 		g.enemies[j] = g.enemies[j].CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
-
-	// 		// Create an extra new enemy
-	// 		newEnemy := g.enemies[j].CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))
-	// 		g.enemies = append(g.enemies, newEnemy)
-
-	// 		g.gameStats.AliveEnemies += 2
-	// 		g.gameStats.DeadEnemies += 1
-	// 	}
-	// }
-	////////////////////////////////////////////////////
 
 	// MouseButtonLeft Create new projectile
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -213,7 +127,7 @@ func (g *Game) Update() error {
 		sprite_Dx := (gross_diff_x / hypot) * speed
 		sprite_Dy := (gross_diff_y / hypot) * speed
 
-		g.player.Projectiles[projectile_counter] = &entities.Projectile{
+		g.player.Projectiles[g.gameStats.ProjectilesShot] = &entities.Projectile{
 			Sprite: &entities.Sprite{
 				Img: g.projectileImg,
 				X:   g.player.X + 5,
@@ -226,10 +140,9 @@ func (g *Game) Update() error {
 		}
 
 		g.gameStats.ProjectilesShot += 1
-		projectile_counter = (projectile_counter + 1) % constants.NumberOfProjectiles
-		// fmt.Println("projectile_counter: ", projectile_counter)
 	}
 
+	// move camera
 	g.cam.FollowTarget(g.player.X+8, g.player.Y+8, constants.CameraWidth, constants.CameraHeight)
 	g.cam.Constrain(
 		float64(g.tilemapJSON.Layers[0].Width)*constants.Tilesize,
@@ -248,6 +161,28 @@ func (g *Game) Update() error {
 	// 		}
 	// 	}
 	// }
+
+	// // close editEnemyCh
+	// go func() {
+	// 	editEnemyWg.Wait()
+	// 	// close(editEnemyCh)
+	// }()
+
+	editEnemyWg.Wait()
+	// add back enemies
+	// for enemyData := range editEnemyCh {
+	for len(editEnemyCh) > 0 {
+		enemyData := <-editEnemyCh
+		if enemyData.index > -1 {
+			// replace existing enemy
+			// g.gameStats.DeadEnemies++
+			g.enemies[enemyData.index] = enemyData.enn
+		} else {
+			// append to slice
+			g.gameStats.AliveEnemies++
+			g.enemies = append(g.enemies, enemyData.enn.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
+		}
+	}
 
 	return nil
 }
@@ -392,5 +327,5 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	// Now draw text (health, enemies, etc.)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies: %d", g.gameStats.AliveEnemies), 20, 20)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kill Count: %d", g.gameStats.DeadEnemies), 20, 40)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Projectiles: %d", g.gameStats.ProjectilesShot), 20, 60)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Projectiles: %d", g.gameStats.ProjectilesShot%constants.NumberOfProjectiles), 20, 60)
 }
