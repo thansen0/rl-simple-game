@@ -89,8 +89,10 @@ func main() {
 			Health:      5,
 			Projectiles: [constants.NumberOfProjectiles]*entities.Projectile{},
 		},
-		enemyLogic: &logic.SimpleFollow{},
-		enemies: []*entities.Enemy{
+		enemyLogic:  &logic.SimpleFollow{},
+		evenEnemyCh: make(chan *entities.Enemy, constants.MaxNumberOfEnemies),
+		oddEnemyCh:  make(chan *entities.Enemy, constants.MaxNumberOfEnemies),
+		/*enemies: []*entities.Enemy{
 			{
 				Sprite: &entities.Sprite{
 					Img:         yellowBatImg,
@@ -155,7 +157,7 @@ func main() {
 				IsAlive:       true,
 				FollowsPlayer: true,
 			},
-		},
+		},*/
 		projectileImg: projectileImg,
 		tilemapJSON:   tilemapJSON,
 		tilemapImg:    tilemapImg,
@@ -166,6 +168,81 @@ func main() {
 			ProjectilesShot: 0,
 		},
 	}
+
+	gen_x, gen_y := game.tilemapJSON.GenValidPos()
+	// populate channel
+	game.evenEnemyCh <- &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img:         yellowBatImg,
+			SpriteSheet: EnemySpriteSheet,
+			X:           gen_x,
+			Y:           gen_y,
+			Animations: map[entities.SpriteState]*animations.Animation{
+				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
+			},
+		},
+		IsAlive:       true,
+		FollowsPlayer: true,
+	}
+
+	gen_x, gen_y = game.tilemapJSON.GenValidPos()
+	game.evenEnemyCh <- &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img:         BlueBatImg,
+			SpriteSheet: EnemySpriteSheet,
+			X:           gen_x,
+			Y:           gen_y,
+			Animations: map[entities.SpriteState]*animations.Animation{
+				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
+			},
+		},
+		IsAlive:       true,
+		FollowsPlayer: true,
+	}
+
+	gen_x, gen_y = game.tilemapJSON.GenValidPos()
+	game.evenEnemyCh <- &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img:         ButterflyImg,
+			SpriteSheet: EnemySpriteSheet,
+			X:           gen_x,
+			Y:           gen_y,
+			Animations: map[entities.SpriteState]*animations.Animation{
+				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
+			},
+		},
+		IsAlive:       true,
+		FollowsPlayer: true,
+	}
+
+	gen_x, gen_y = game.tilemapJSON.GenValidPos()
+	game.evenEnemyCh <- &entities.Enemy{
+		Sprite: &entities.Sprite{
+			Img:         ButterflyBlueImg,
+			SpriteSheet: EnemySpriteSheet,
+			X:           gen_x,
+			Y:           gen_y,
+			Animations: map[entities.SpriteState]*animations.Animation{
+				entities.Up:    animations.NewAnimation(5, 13, 4, 8.0),
+				entities.Down:  animations.NewAnimation(4, 12, 4, 8.0),
+				entities.Left:  animations.NewAnimation(6, 14, 4, 8.0),
+				entities.Right: animations.NewAnimation(7, 15, 4, 8.0),
+			},
+		},
+		IsAlive:       true,
+		FollowsPlayer: true,
+	}
+
+	fmt.Println("Created four entries")
 
 	// set random initialization points for enemies
 	for i := range game.enemies {

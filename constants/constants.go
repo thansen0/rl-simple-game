@@ -6,4 +6,5 @@ const (
 	NumberOfProjectiles = 200
 	CameraWidth         = 320
 	CameraHeight        = 240
+	MaxNumberOfEnemies  = 2000000
 )

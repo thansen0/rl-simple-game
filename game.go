@@ -9,7 +9,6 @@ import (
 	"simplegame/entities"
 	"simplegame/logic"
 	"simplegame/tilemap"
-	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -30,15 +29,9 @@ type Game struct {
 	tilemapImg    *ebiten.Image
 	projectileImg *ebiten.Image // may not be the best place for this
 	cam           *Camera
+	evenEnemyCh   chan *entities.Enemy
+	oddEnemyCh    chan *entities.Enemy
 }
-
-type EnemyIndex struct {
-	index int
-	enn   *entities.Enemy
-}
-
-// must have a defined size or else the program locks
-var editEnemyCh = make(chan EnemyIndex, 500000)
 
 func (g *Game) Update() error {
 	var prev_player_X float64
@@ -46,7 +39,7 @@ func (g *Game) Update() error {
 	prev_player_X = g.player.X
 	prev_player_Y = g.player.Y
 
-	var editEnemyWg sync.WaitGroup
+	// var editEnemyWg sync.WaitGroup
 
 	// we modify projectiles again later one
 	// update all projectiles
@@ -76,32 +69,43 @@ func (g *Game) Update() error {
 	}
 
 	// add behavior to the enemies
-	for i, sprite := range g.enemies {
+loop:
+	for {
 		// really should be returning a whole enemy struct to
 		// replace the existing one in the slice so we can use a
 		// channel
-		editEnemyWg.Add(1)
-		go func(cur_sprite *entities.Enemy, player_cur_x, player_cur_y float64, i int) {
-			// check for projectile collision
-			for _, proj := range g.player.Projectiles {
-				if proj == nil {
-					continue
-				}
-				if math.Abs((cur_sprite.X+4)-proj.X) < 4 && math.Abs((cur_sprite.Y+4)-proj.Y) < 4 {
-					// overlap, kill both
-					cur_sprite = cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))
-					// editEnemyCh <- EnemyIndex{-1, sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y))}
-					// g.player.Projectiles[j].IsAlive = false
+		select {
+		case sprite := <-g.evenEnemyCh:
+			go func(cur_sprite *entities.Enemy, player_cur_x, player_cur_y float64) {
+				var just_died bool = false
+				// check for projectile collision
+			proj_loop:
+				for _, proj := range g.player.Projectiles {
+					if proj == nil {
+						continue
+					}
+					if math.Abs((cur_sprite.X+4)-proj.X) < 4 && math.Abs((cur_sprite.Y+4)-proj.Y) < 4 {
+						// overlap, kill both
+						g.oddEnemyCh <- cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))
 
-					// Create new enemy; each death creates new new ones
-					// g.enemies = append(g.enemies, sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
-					editEnemyCh <- EnemyIndex{-1, cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))}
+						// Create new enemy; each death creates new new ones
+						g.gameStats.AliveEnemies++
+						g.oddEnemyCh <- cur_sprite.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(player_cur_x, player_cur_y))
+						just_died = true
+						break proj_loop
+					}
 				}
-			}
 
-			editEnemyCh <- EnemyIndex{i, g.enemyLogic.Action(g.tilemapJSON, cur_sprite, player_cur_x, player_cur_y)}
-			editEnemyWg.Done()
-		}(sprite, g.player.X, g.player.Y, i)
+				// func (f *SimpleFollow) Action(tm *tilemap.TilemapJSON, cur_sprite *entities.Enemy, player_x, player_y float64) (en *entities.Enemy)
+				// g.enemyLogic.Action()
+				// no collision, but add back
+				if !just_died {
+					g.oddEnemyCh <- g.enemyLogic.Action(g.tilemapJSON, cur_sprite, player_cur_x, player_cur_y)
+				}
+			}(sprite, g.player.X, g.player.Y)
+		default:
+			break loop
+		}
 	}
 
 	// MouseButtonLeft Create new projectile
@@ -127,7 +131,7 @@ func (g *Game) Update() error {
 		sprite_Dx := (gross_diff_x / hypot) * speed
 		sprite_Dy := (gross_diff_y / hypot) * speed
 
-		g.player.Projectiles[g.gameStats.ProjectilesShot] = &entities.Projectile{
+		g.player.Projectiles[g.gameStats.ProjectilesShot%constants.NumberOfProjectiles] = &entities.Projectile{
 			Sprite: &entities.Sprite{
 				Img: g.projectileImg,
 				X:   g.player.X + 5,
@@ -152,35 +156,13 @@ func (g *Game) Update() error {
 	)
 
 	// Check if the player has been caught
-	// for _, en := range g.enemies {
-	// 	if en.IsAlive {
-	// 		caught := tilemap.PosMatch(g.player.Sprite, en.Sprite)
-	// 		if caught {
-	// 			// fmt.Println("Enemy caught the player!")
-	// 			fmt.Print("")
-	// 		}
-	// 	}
-	// }
-
-	// // close editEnemyCh
-	// go func() {
-	// 	editEnemyWg.Wait()
-	// 	// close(editEnemyCh)
-	// }()
-
-	editEnemyWg.Wait()
-	// add back enemies
-	// for enemyData := range editEnemyCh {
-	for len(editEnemyCh) > 0 {
-		enemyData := <-editEnemyCh
-		if enemyData.index > -1 {
-			// replace existing enemy
-			// g.gameStats.DeadEnemies++
-			g.enemies[enemyData.index] = enemyData.enn
-		} else {
-			// append to slice
-			g.gameStats.AliveEnemies++
-			g.enemies = append(g.enemies, enemyData.enn.CreateNewEnemy(g.tilemapJSON.GenValidPosOutsideCamera(g.player.X, g.player.Y)))
+	for _, en := range g.enemies {
+		if en.IsAlive {
+			caught := tilemap.PosMatch(g.player.Sprite, en.Sprite)
+			if caught {
+				fmt.Println("Enemy caught the player!")
+				// fmt.Print("")
+			}
 		}
 	}
 
@@ -275,29 +257,41 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	opts.GeoM.Reset()
 
 	// prints out enemies, but also doesn't?
-	for _, sprite := range g.enemies {
-		if sprite.IsAlive {
-			opts.GeoM.Translate(sprite.X, sprite.Y)
-			opts.GeoM.Translate(g.cam.X, g.cam.Y)
+	// for sprite := range g.oddEnemyCh {
+loop:
+	for {
+		select {
+		case sprite := <-g.oddEnemyCh:
+			if sprite.IsAlive {
+				opts.GeoM.Translate(sprite.X, sprite.Y)
+				opts.GeoM.Translate(g.cam.X, g.cam.Y)
 
-			spriteFrame := 0
-			activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
-			if activeAnim == nil {
-				// force an up animation
-				activeAnim = sprite.ActiveAnimation(0, 2)
+				spriteFrame := 0
+				activeAnim := sprite.ActiveAnimation(int(sprite.Dx), int(sprite.Dy))
+				if activeAnim == nil {
+					// force an up animation
+					activeAnim = sprite.ActiveAnimation(0, 2)
+				}
+				spriteFrame = activeAnim.Frame()
+
+				// draw the player
+				screen.DrawImage(
+					// grab a subimage of the spritesheet
+					sprite.Img.SubImage(
+						sprite.SpriteSheet.Rect(spriteFrame),
+					).(*ebiten.Image),
+					&opts,
+				)
+
+				g.evenEnemyCh <- sprite
+
+				opts.GeoM.Reset()
 			}
-			spriteFrame = activeAnim.Frame()
-
-			// draw the player
-			screen.DrawImage(
-				// grab a subimage of the spritesheet
-				sprite.Img.SubImage(
-					sprite.SpriteSheet.Rect(spriteFrame),
-				).(*ebiten.Image),
-				&opts,
-			)
-
-			opts.GeoM.Reset()
+		default:
+			// nothing left to draw
+			// opts.GeoM.Reset()
+			// return // do this if it is ineffective break
+			break loop
 		}
 	}
 
@@ -321,11 +315,10 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	// Draw the rectangle at top-left corner
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(5, 5)
-	// op.GeoM.Scale(0.5, 0.5)
 	screen.DrawImage(hud, op)
 
 	// Now draw text (health, enemies, etc.)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Enemies: %d", g.gameStats.AliveEnemies), 20, 20)
 	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Kill Count: %d", g.gameStats.DeadEnemies), 20, 40)
-	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Projectiles: %d", g.gameStats.ProjectilesShot%constants.NumberOfProjectiles), 20, 60)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Projectiles: %d", g.gameStats.ProjectilesShot), 20, 60)
 }
